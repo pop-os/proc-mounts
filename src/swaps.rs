@@ -1,6 +1,7 @@
 use std::char;
 use std::ffi::OsString;
-use std::io::{Error, ErrorKind, Read, Result};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -20,43 +21,12 @@ pub struct SwapInfo {
     pub priority: isize,
 }
 
-/// A list of parsed swap entries from `/proc/swaps`.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct SwapList(pub Vec<SwapInfo>);
-
-impl SwapList {
-    fn parse_value(value: &str) -> Result<OsString> {
-        let mut ret = Vec::new();
-
-        let mut bytes = value.bytes();
-        while let Some(b) = bytes.next() {
-            match b {
-                b'\\' => {
-                    let mut code = 0;
-                    for _i in 0..3 {
-                        if let Some(b) = bytes.next() {
-                            code *= 8;
-                            code += u32::from_str_radix(&(b as char).to_string(), 8)
-                                .map_err(|err| Error::new(ErrorKind::Other, err))?;
-                        } else {
-                            return Err(Error::new(ErrorKind::Other, "truncated octal code"));
-                        }
-                    }
-                    ret.push(code as u8);
-                }
-                _ => {
-                    ret.push(b);
-                }
-            }
-        }
-
-        Ok(OsString::from_vec(ret))
-    }
-
-    fn parse_line(line: &str) -> Result<SwapInfo> {
+impl SwapInfo {
+    // Attempt to parse a `/proc/swaps`-like line.
+    pub fn parse_line(line: &str) -> io::Result<SwapInfo> {
         let mut parts = line.split_whitespace();
 
-        fn parse<F: FromStr>(string: &OsString) -> Result<F> {
+        fn parse<F: FromStr>(string: &OsString) -> io::Result<F> {
             let string = string.to_str().ok_or_else(|| Error::new(
                 ErrorKind::InvalidData,
                 "/proc/swaps contains non-UTF8 entry"
@@ -85,26 +55,83 @@ impl SwapList {
         })
     }
 
-    pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<SwapList> {
-        lines.map(Self::parse_line)
-            .collect::<Result<Vec<SwapInfo>>>()
+    fn parse_value(value: &str) -> io::Result<OsString> {
+        let mut ret = Vec::new();
+
+        let mut bytes = value.bytes();
+        while let Some(b) = bytes.next() {
+            match b {
+                b'\\' => {
+                    let mut code = 0;
+                    for _i in 0..3 {
+                        if let Some(b) = bytes.next() {
+                            code *= 8;
+                            code += u32::from_str_radix(&(b as char).to_string(), 8)
+                                .map_err(|err| Error::new(ErrorKind::Other, err))?;
+                        } else {
+                            return Err(Error::new(ErrorKind::Other, "truncated octal code"));
+                        }
+                    }
+                    ret.push(code as u8);
+                }
+                _ => {
+                    ret.push(b);
+                }
+            }
+        }
+
+        Ok(OsString::from_vec(ret))
+    }
+}
+
+/// A list of parsed swap entries from `/proc/swaps`.
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct SwapList(pub Vec<SwapInfo>);
+
+impl SwapList {
+    pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> io::Result<SwapList> {
+        lines.map(SwapInfo::parse_line)
+            .collect::<io::Result<Vec<SwapInfo>>>()
             .map(SwapList)
     }
 
-    pub fn new() -> Result<SwapList> {
-        let file = ::open("/proc/swaps")
-            .and_then(|mut file| {
-                let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
-                let mut string = String::with_capacity(length);
-                file.read_to_string(&mut string).map(|_| string)
-            })?;
-
-        Self::parse_from(file.lines().skip(1))
+    pub fn new() -> io::Result<SwapList> {
+        Ok(SwapList(SwapIter::new()?.collect::<io::Result<Vec<SwapInfo>>>()?))
     }
 
     /// Returns true if the given path is a entry in the swap list.
     pub fn get_swapped(&self, path: &Path) -> bool {
         self.0.iter().any(|mount| mount.source == path)
+    }
+}
+
+/// Iteratively parse the `/proc/swaps` file.
+pub struct SwapIter {
+    file: BufReader<File>,
+    buffer: String
+}
+
+impl SwapIter {
+    pub fn new() -> io::Result<Self> {
+        let mut file = BufReader::new(File::open("/proc/swaps")?);
+        let mut buffer = String::with_capacity(512);
+        file.read_line(&mut buffer)?;
+        buffer.clear();
+
+        Ok(Self { file, buffer })
+    }
+}
+
+impl Iterator for SwapIter {
+    type Item = io::Result<SwapInfo>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.buffer.clear();
+        match self.file.read_line(&mut self.buffer) {
+            Ok(read) if read == 0 => None,
+            Ok(_) => Some(SwapInfo::parse_line(&self.buffer)),
+            Err(why) => Some(Err(why))
+        }
     }
 }
 

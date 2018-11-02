@@ -2,21 +2,21 @@
 //!
 //! ```rust,no_run
 //! extern crate proc_mounts;
-//!
-//! use proc_mounts::{MountList, SwapList};
+//! 
+//! use proc_mounts::{MountIter, SwapIter};
 //! use std::io;
-//!
+//! 
 //! fn main() -> io::Result<()> {
 //!     println!("# Active Mounts");
-//!     for mount in MountList::new()?.0 {
+//!     for mount in MountIter::new()? {
 //!         println!("{:#?}", mount);
 //!     }
-//!
+//! 
 //!     println!("# Active Swaps");
-//!     for swap in SwapList::new()?.0 {
+//!     for swap in SwapIter::new()? {
 //!         println!("{:#?}", swap);
 //!     }
-//!
+//! 
 //!     Ok(())
 //! }
 //! ```

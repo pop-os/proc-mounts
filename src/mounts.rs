@@ -1,6 +1,7 @@
 use std::char;
 use std::ffi::OsString;
-use std::io::{Error, ErrorKind, Read, Result};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 
@@ -22,12 +23,46 @@ pub struct MountInfo {
     pub pass: i32,
 }
 
-/// A list of parsed mount entries from `/proc/mounts`.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct MountList(pub Vec<MountInfo>);
+impl MountInfo {
+    /// Attempt to parse a `/proc/mounts`-like line.
+    pub fn parse_line(line: &str) -> io::Result<MountInfo> {
+        let mut parts = line.split(' ');
 
-impl MountList {
-    fn parse_value(value: &str) -> Result<OsString> {
+        let source = parts
+            .next()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing source"))?;
+        let dest = parts
+            .next()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dest"))?;
+        let fstype = parts
+            .next()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing type"))?;
+        let options = parts
+            .next()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing options"))?;
+        let dump = parts
+            .next()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dump"))?
+            .parse::<i32>()
+            .map_err(|_| Error::new(ErrorKind::InvalidData, "dump value is not a number"))?;
+        let pass = parts
+            .next()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing pass"))?
+            .trim_right()
+            .parse::<i32>()
+            .map_err(|_| Error::new(ErrorKind::InvalidData, "pass value is not a number"))?;
+
+        Ok(MountInfo {
+            source: PathBuf::from(Self::parse_value(source)?),
+            dest:   PathBuf::from(Self::parse_value(dest)?),
+            fstype: fstype.to_owned(),
+            options: options.split(',').map(String::from).collect(),
+            dump,
+            pass
+        })
+    }
+
+    fn parse_value(value: &str) -> io::Result<OsString> {
         let mut ret = Vec::new();
 
         let mut bytes = value.bytes();
@@ -54,60 +89,23 @@ impl MountList {
 
         Ok(OsString::from_vec(ret))
     }
+}
 
-    fn parse_line(line: &str) -> Result<MountInfo> {
-        let mut parts = line.split(' ');
+/// A list of parsed mount entries from `/proc/mounts`.
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct MountList(pub Vec<MountInfo>);
 
-        let source = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing source"))?;
-        let dest = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dest"))?;
-        let fstype = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing type"))?;
-        let options = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing options"))?;
-        let dump = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dump"))?
-            .parse::<i32>()
-            .map_err(|_| Error::new(ErrorKind::InvalidData, "dump value is not a number"))?;
-        let pass = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing pass"))?
-            .parse::<i32>()
-            .map_err(|_| Error::new(ErrorKind::InvalidData, "pass value is not a number"))?;
-
-        Ok(MountInfo {
-            source: PathBuf::from(Self::parse_value(source)?),
-            dest:   PathBuf::from(Self::parse_value(dest)?),
-            fstype: fstype.to_owned(),
-            options: options.split(',').map(String::from).collect(),
-            dump,
-            pass
-        })
-    }
-
+impl MountList {
     /// Parse mounts given from an iterator of mount entry lines.
-    pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> Result<MountList> {
-        lines.map(Self::parse_line)
-            .collect::<Result<Vec<MountInfo>>>()
+    pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> io::Result<MountList> {
+        lines.map(MountInfo::parse_line)
+            .collect::<io::Result<Vec<MountInfo>>>()
             .map(MountList)
     }
 
     /// Read a new list of mounts into memory from `/proc/mounts`.
-    pub fn new() -> Result<MountList> {
-        let file = ::open("/proc/mounts")
-            .and_then(|mut file| {
-                let length = file.metadata().ok().map_or(0, |x| x.len() as usize);
-                let mut string = String::with_capacity(length);
-                file.read_to_string(&mut string).map(|_| string)
-            })?;
-
-        Self::parse_from(file.lines())
+    pub fn new() -> io::Result<MountList> {
+        Ok(MountList(MountIter::new()?.collect::<io::Result<Vec<MountInfo>>>()?))
     }
 
     /// Find the first mount which which has the `path` destination.
@@ -147,6 +145,34 @@ impl MountList {
             });
 
         Box::new(iterator)
+    }
+}
+
+/// Iteratively parse the `/proc/mounts` file.
+pub struct MountIter {
+    file: BufReader<File>,
+    buffer: String
+}
+
+impl MountIter {
+    pub fn new() -> io::Result<Self> {
+        Ok(Self {
+            file: BufReader::new(File::open("/proc/mounts")?),
+            buffer: String::with_capacity(512),
+        })
+    }
+}
+
+impl Iterator for MountIter {
+    type Item = io::Result<MountInfo>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.buffer.clear();
+        match self.file.read_line(&mut self.buffer) {
+            Ok(read) if read == 0 => None,
+            Ok(_) => Some(MountInfo::parse_line(&self.buffer)),
+            Err(why) => Some(Err(why))
+        }
     }
 }
 
