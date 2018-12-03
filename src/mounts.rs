@@ -5,13 +5,13 @@ use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 
-/// A mount entry which contains information regarding how and where a device
+/// A mount entry which contains information regarding how and where a source
 /// is mounted.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct MountInfo {
-    /// The device which is mounted.
+    /// The source which is mounted.
     pub source: PathBuf,
-    /// Where the device is mounted.
+    /// Where the source is mounted.
     pub dest:   PathBuf,
     /// The type of the mounted file system.
     pub fstype: String,
@@ -108,6 +108,12 @@ impl MountList {
         Ok(MountList(MountIter::new()?.collect::<io::Result<Vec<MountInfo>>>()?))
     }
 
+    // Returns true if the `source` is mounted at the given `dest`.
+    pub fn source_mounted_at<D: AsRef<Path>, P: AsRef<Path>>(&self, source: D, path: P) -> bool {
+        self.get_mount_by_source(source)
+            .map_or(false, |mount| mount.dest.as_path() == path.as_ref())
+    }
+
     /// Find the first mount which which has the `path` destination.
     pub fn get_mount_by_dest<P: AsRef<Path>>(&self, path: P) -> Option<&MountInfo> {
         self.0
@@ -161,6 +167,29 @@ impl MountIter {
             buffer: String::with_capacity(512),
         })
     }
+
+    /// Iterator-based variant of `source_mounted_at`.
+    ///
+    /// Returns true if the `source` is mounted at the given `dest`.
+    ///
+    /// Due to iterative parsing of the mount file, an error may be returned.
+    pub fn source_mounted_at<D: AsRef<Path>, P: AsRef<Path>>(source: D, path: P) -> io::Result<bool> {
+        let source = source.as_ref();
+        let path = path.as_ref();
+
+        let mut is_found = false;
+
+        let mounts = MountIter::new()?;
+        for mount in mounts {
+            let mount = mount?;
+            if mount.source == source {
+                is_found = mount.dest == path;
+                break
+            }
+        }
+
+        Ok(is_found)
+    }
 }
 
 impl Iterator for MountIter {
@@ -189,6 +218,13 @@ tmpfs /run tmpfs rw,nosuid,noexec,relatime,size=3291052k,mode=755 0 0
 fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
 /dev/sda1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro 0 0
 /dev/sda6 /mnt/data ext4 rw,noatime,data=ordered 0 0"#;
+
+    #[test]
+    fn source_mounted_at() {
+        let mounts = MountList::parse_from(SAMPLE.lines()).unwrap();
+        assert!(mounts.source_mounted_at("/dev/sda2", "/"));
+        assert!(mounts.source_mounted_at("/dev/sda1", "/boot/efi"));
+    }
 
     #[test]
     fn mounts() {
