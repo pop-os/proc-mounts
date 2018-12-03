@@ -1,6 +1,6 @@
 [package]
 name = "proc-mounts"
-version = "0.1.1"
+version = "0.1.2-alpha.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Fetch active mounts and swaps on a Linux system"
 repository = "https://github.com/pop-os/proc-mounts"
