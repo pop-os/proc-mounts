@@ -1,6 +1,6 @@
 [package]
 name = "proc-mounts"
-version = "0.1.2-alpha.0"
+version = "0.1.2"
 authors = ["Jeremy Soller <jackpot51@gmail.com>", "Michael Aaron Murphy <mmstickman@gmail.com>"]
 description = "Fetch active mounts and swaps on a Linux system"
 repository = "https://github.com/pop-os/proc-mounts"
@@ -11,3 +11,4 @@ keywords = ["linux", "proc", "mounts", "swaps"]
 
 [dependencies]
 lazy_static = "1.1.0"
+partition-identity = "0.2.0"
