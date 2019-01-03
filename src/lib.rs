@@ -23,6 +23,7 @@
 
 #[macro_use]
 extern crate lazy_static;
+extern crate partition_identity;
 
 mod mounts;
 mod swaps;

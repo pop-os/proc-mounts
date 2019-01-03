@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
+use partition_identity::PartitionID;
 
 /// A mount entry which contains information regarding how and where a source
 /// is mounted.
@@ -52,14 +53,44 @@ impl MountInfo {
             .parse::<i32>()
             .map_err(|_| Error::new(ErrorKind::InvalidData, "pass value is not a number"))?;
 
+        let path = Self::parse_value(source)?;
+        let path = path.to_str()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8 paths are unsupported"))?;
+
+        let source = if path.starts_with("/dev/disk/by-") {
+            Self::fetch_from_disk_by_path(path)?
+        } else {
+            PathBuf::from(path)
+        };
+
+        let path = Self::parse_value(dest)?;
+        let path = path.to_str()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8 paths are unsupported"))?;
+
+        let dest = if path.starts_with("/dev/disk/by-") {
+            Self::fetch_from_disk_by_path(path)?
+        } else {
+            PathBuf::from(path)
+        };
+
         Ok(MountInfo {
-            source: PathBuf::from(Self::parse_value(source)?),
-            dest:   PathBuf::from(Self::parse_value(dest)?),
+            source,
+            dest,
             fstype: fstype.to_owned(),
             options: options.split(',').map(String::from).collect(),
             dump,
             pass
         })
+    }
+
+    fn fetch_from_disk_by_path(path: &str) -> io::Result<PathBuf> {
+        PartitionID::from_disk_by_path(path)
+            .map_err(|why| Error::new(ErrorKind::InvalidData, format!("{}: {}", path, why)))?
+            .get_device_path()
+            .ok_or_else(|| Error::new(
+                ErrorKind::NotFound,
+                format!("device path for {} was not found", path)
+            ))
     }
 
     fn parse_value(value: &str) -> io::Result<OsString> {

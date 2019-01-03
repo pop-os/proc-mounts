@@ -6,7 +6,10 @@ use std::io;
 fn main() -> io::Result<()> {
     println!("# Active Mounts");
     for mount in MountIter::new()? {
-        println!("{:#?}", mount);
+        match mount {
+            Ok(mount) => println!("{:?}: {:?}", mount.source, mount.dest),
+            Err(why) => eprintln!("error reading mount: {}", why)
+        }
     }
 
     println!("# Active Swaps");
