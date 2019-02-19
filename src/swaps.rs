@@ -1,5 +1,6 @@
 use std::char;
 use std::ffi::OsString;
+use std::fmt::{self, Display, Formatter};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::OsStringExt;
@@ -21,9 +22,23 @@ pub struct SwapInfo {
     pub priority: isize,
 }
 
-impl SwapInfo {
-    // Attempt to parse a `/proc/swaps`-like line.
-    pub fn parse_line(line: &str) -> io::Result<SwapInfo> {
+impl Display for SwapInfo {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(
+            fmt,
+            "{} {} {} {} {}",
+            self.source.display(),
+            self.kind.to_str().ok_or(fmt::Error)?,
+            self.size,
+            self.used,
+            self.priority
+        )
+    }
+}
+
+impl FromStr for SwapInfo {
+    type Err = io::Error;
+    fn from_str(line: &str) -> Result<Self, Self::Err> {
         let mut parts = line.split_whitespace();
 
         fn parse<F: FromStr>(string: &OsString) -> io::Result<F> {
@@ -52,6 +67,14 @@ impl SwapInfo {
             used: parse::<usize>(&next_value!("Missing used")?)?,
             priority: parse::<isize>(&next_value!("Missing priority")?)?,
         })
+    }
+}
+
+impl SwapInfo {
+    // Attempt to parse a `/proc/swaps`-like line.
+    #[deprecated]
+    pub fn parse_line(line: &str) -> io::Result<SwapInfo> {
+        line.parse::<Self>()
     }
 
     fn parse_value(value: &str) -> io::Result<OsString> {
@@ -89,7 +112,7 @@ pub struct SwapList(pub Vec<SwapInfo>);
 
 impl SwapList {
     pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> io::Result<SwapList> {
-        lines.map(SwapInfo::parse_line).collect::<io::Result<Vec<SwapInfo>>>().map(SwapList)
+        lines.map(SwapInfo::from_str).collect::<io::Result<Vec<SwapInfo>>>().map(SwapList)
     }
 
     pub fn new() -> io::Result<SwapList> {
@@ -143,7 +166,7 @@ impl<R: BufRead> Iterator for SwapIter<R> {
         self.buffer.clear();
         match self.file.read_line(&mut self.buffer) {
             Ok(read) if read == 0 => None,
-            Ok(_) => Some(SwapInfo::parse_line(&self.buffer)),
+            Ok(_) => Some(SwapInfo::from_str(&self.buffer)),
             Err(why) => Some(Err(why)),
         }
     }

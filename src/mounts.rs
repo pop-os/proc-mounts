@@ -1,10 +1,12 @@
 use partition_identity::PartitionID;
 use std::char;
 use std::ffi::OsString;
+use std::fmt::{self, Display, Formatter};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// A mount entry which contains information regarding how and where a source
 /// is mounted.
@@ -24,35 +26,50 @@ pub struct MountInfo {
     pub pass: i32,
 }
 
-impl MountInfo {
-    /// Attempt to parse a `/proc/mounts`-like line.
-    pub fn parse_line(line: &str) -> io::Result<MountInfo> {
+impl Display for MountInfo {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(
+            fmt,
+            "{} {} {} {} {} {}",
+            self.source.display(),
+            self.dest.display(),
+            self.fstype,
+            self.options.join(","),
+            self.dump,
+            self.pass
+        )
+    }
+}
+
+impl FromStr for MountInfo {
+    type Err = io::Error;
+
+    fn from_str(line: &str) -> Result<Self, Self::Err> {
         let mut parts = line.split_whitespace();
 
-        let source =
-            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing source"))?;
-        let dest =
-            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dest"))?;
-        let fstype =
-            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing type"))?;
-        let options =
-            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing options"))?;
+        fn map_err(why: &'static str) -> io::Error {
+            Error::new(ErrorKind::InvalidData, why)
+        }
+
+        let source = parts.next().ok_or_else(|| map_err("missing source"))?;
+        let dest = parts.next().ok_or_else(|| map_err("missing dest"))?;
+        let fstype = parts.next().ok_or_else(|| map_err("missing type"))?;
+        let options = parts.next().ok_or_else(|| map_err("missing options"))?;
+
         let dump = parts
             .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dump"))?
+            .ok_or_else(|| map_err("missing dump"))?
             .parse::<i32>()
-            .map_err(|_| Error::new(ErrorKind::InvalidData, "dump value is not a number"))?;
+            .map_err(|_| map_err("dump value is not a number"))?;
         let pass = parts
             .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing pass"))?
+            .ok_or_else(|| map_err("missing pass"))?
             .trim_right()
             .parse::<i32>()
-            .map_err(|_| Error::new(ErrorKind::InvalidData, "pass value is not a number"))?;
+            .map_err(|_| map_err("pass value is not a number"))?;
 
         let path = Self::parse_value(source)?;
-        let path = path
-            .to_str()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8 paths are unsupported"))?;
+        let path = path.to_str().ok_or_else(|| map_err("non-utf8 paths are unsupported"))?;
 
         let source = if path.starts_with("/dev/disk/by-") {
             Self::fetch_from_disk_by_path(path)?
@@ -61,9 +78,7 @@ impl MountInfo {
         };
 
         let path = Self::parse_value(dest)?;
-        let path = path
-            .to_str()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8 paths are unsupported"))?;
+        let path = path.to_str().ok_or_else(|| map_err("non-utf8 paths are unsupported"))?;
 
         let dest = PathBuf::from(path);
 
@@ -75,6 +90,14 @@ impl MountInfo {
             dump,
             pass,
         })
+    }
+}
+
+impl MountInfo {
+    /// Attempt to parse a `/proc/mounts`-like line.
+    #[deprecated]
+    pub fn parse_line(line: &str) -> io::Result<MountInfo> {
+        line.parse::<Self>()
     }
 
     fn fetch_from_disk_by_path(path: &str) -> io::Result<PathBuf> {
@@ -122,7 +145,7 @@ pub struct MountList(pub Vec<MountInfo>);
 impl MountList {
     /// Parse mounts given from an iterator of mount entry lines.
     pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> io::Result<MountList> {
-        lines.map(MountInfo::parse_line).collect::<io::Result<Vec<MountInfo>>>().map(MountList)
+        lines.map(MountInfo::from_str).collect::<io::Result<Vec<MountInfo>>>().map(MountList)
     }
 
     /// Read a new list of mounts into memory from `/proc/mounts`.
@@ -246,8 +269,8 @@ impl<R: BufRead> Iterator for MountIter<R> {
                 Ok(read) if read == 0 => return None,
                 Ok(_) => {
                     let line = self.buffer.trim_left();
-                    if !(line.starts_with("#") || line.is_empty()) {
-                        return Some(MountInfo::parse_line(line));
+                    if !(line.starts_with('#') || line.is_empty()) {
+                        return Some(MountInfo::from_str(line));
                     }
                 }
                 Err(why) => return Some(Err(why)),
