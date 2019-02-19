@@ -1,3 +1,9 @@
+# 0.2.1
+
+- Implement `Display` for `MountInfo` and `SwapInfo`
+- Implement `FromStr` for `MountInfo` and `SwapInfo`
+- Add deprecation notice for `MountInfo`/`SwapInfo`::`parse_line`
+
 # 0.2.0
 
 - Support parsing the `/etc/fstab` file, in addition to `/proc/mounts`
