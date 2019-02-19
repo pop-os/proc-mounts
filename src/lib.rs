@@ -2,21 +2,21 @@
 //!
 //! ```rust,no_run
 //! extern crate proc_mounts;
-//! 
+//!
 //! use proc_mounts::{MountIter, SwapIter};
 //! use std::io;
-//! 
+//!
 //! fn main() -> io::Result<()> {
 //!     println!("# Active Mounts");
 //!     for mount in MountIter::new()? {
 //!         println!("{:#?}", mount);
 //!     }
-//! 
+//!
 //!     println!("# Active Swaps");
 //!     for swap in SwapIter::new()? {
 //!         println!("{:#?}", swap);
 //!     }
-//! 
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -62,7 +62,7 @@ lazy_static! {
 fn watch_and_set<T: 'static + Send + Sync>(
     swaps: Arc<RwLock<T>>,
     file: &'static str,
-    create_new: fn() -> Option<T>
+    create_new: fn() -> Option<T>,
 ) {
     thread::spawn(move || {
         let buffer: &mut [u8] = &mut [0u8; 8 * 1024];
@@ -80,7 +80,7 @@ fn modify_if_changed<T: 'static + Send + Sync>(
     modified: &mut u64,
     buffer: &mut [u8],
     file: &'static str,
-    create_new: fn() -> Option<T>
+    create_new: fn() -> Option<T>,
 ) {
     if let Ok(new_modified) = get_file_hash(file, buffer) {
         if new_modified != *modified {
@@ -107,8 +107,10 @@ fn get_file_hash<P: AsRef<Path>>(path: P, buffer: &mut [u8]) -> io::Result<u64> 
 }
 
 fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
-    File::open(&path).map_err(|why| io::Error::new(
-        io::ErrorKind::Other,
-        format!("unable to open file at {:?}: {}", path.as_ref(), why)
-    ))
+    File::open(&path).map_err(|why| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("unable to open file at {:?}: {}", path.as_ref(), why),
+        )
+    })
 }
