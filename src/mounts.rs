@@ -1,10 +1,10 @@
+use partition_identity::PartitionID;
 use std::char;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error, ErrorKind};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
-use partition_identity::PartitionID;
 
 /// A mount entry which contains information regarding how and where a source
 /// is mounted.
@@ -13,7 +13,7 @@ pub struct MountInfo {
     /// The source which is mounted.
     pub source: PathBuf,
     /// Where the source is mounted.
-    pub dest:   PathBuf,
+    pub dest: PathBuf,
     /// The type of the mounted file system.
     pub fstype: String,
     /// Options specified for this file system.
@@ -27,20 +27,16 @@ pub struct MountInfo {
 impl MountInfo {
     /// Attempt to parse a `/proc/mounts`-like line.
     pub fn parse_line(line: &str) -> io::Result<MountInfo> {
-        let mut parts = line.split(' ');
+        let mut parts = line.split_whitespace();
 
-        let source = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing source"))?;
-        let dest = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dest"))?;
-        let fstype = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing type"))?;
-        let options = parts
-            .next()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing options"))?;
+        let source =
+            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing source"))?;
+        let dest =
+            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dest"))?;
+        let fstype =
+            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing type"))?;
+        let options =
+            parts.next().ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing options"))?;
         let dump = parts
             .next()
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing dump"))?
@@ -54,7 +50,8 @@ impl MountInfo {
             .map_err(|_| Error::new(ErrorKind::InvalidData, "pass value is not a number"))?;
 
         let path = Self::parse_value(source)?;
-        let path = path.to_str()
+        let path = path
+            .to_str()
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8 paths are unsupported"))?;
 
         let source = if path.starts_with("/dev/disk/by-") {
@@ -64,14 +61,11 @@ impl MountInfo {
         };
 
         let path = Self::parse_value(dest)?;
-        let path = path.to_str()
+        let path = path
+            .to_str()
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8 paths are unsupported"))?;
 
-        let dest = if path.starts_with("/dev/disk/by-") {
-            Self::fetch_from_disk_by_path(path)?
-        } else {
-            PathBuf::from(path)
-        };
+        let dest = PathBuf::from(path);
 
         Ok(MountInfo {
             source,
@@ -79,7 +73,7 @@ impl MountInfo {
             fstype: fstype.to_owned(),
             options: options.split(',').map(String::from).collect(),
             dump,
-            pass
+            pass,
         })
     }
 
@@ -87,10 +81,9 @@ impl MountInfo {
         PartitionID::from_disk_by_path(path)
             .map_err(|why| Error::new(ErrorKind::InvalidData, format!("{}: {}", path, why)))?
             .get_device_path()
-            .ok_or_else(|| Error::new(
-                ErrorKind::NotFound,
-                format!("device path for {} was not found", path)
-            ))
+            .ok_or_else(|| {
+                Error::new(ErrorKind::NotFound, format!("device path for {} was not found", path))
+            })
     }
 
     fn parse_value(value: &str) -> io::Result<OsString> {
@@ -129,14 +122,22 @@ pub struct MountList(pub Vec<MountInfo>);
 impl MountList {
     /// Parse mounts given from an iterator of mount entry lines.
     pub fn parse_from<'a, I: Iterator<Item = &'a str>>(lines: I) -> io::Result<MountList> {
-        lines.map(MountInfo::parse_line)
-            .collect::<io::Result<Vec<MountInfo>>>()
-            .map(MountList)
+        lines.map(MountInfo::parse_line).collect::<io::Result<Vec<MountInfo>>>().map(MountList)
     }
 
     /// Read a new list of mounts into memory from `/proc/mounts`.
     pub fn new() -> io::Result<MountList> {
         Ok(MountList(MountIter::new()?.collect::<io::Result<Vec<MountInfo>>>()?))
+    }
+
+    /// Read a new list of mounts into memory from any mount-tab-like file.
+    pub fn new_from_file<P: AsRef<Path>>(path: P) -> io::Result<MountList> {
+        Ok(MountList(MountIter::new_from_file(path)?.collect::<io::Result<Vec<MountInfo>>>()?))
+    }
+
+    /// Read a new list of mounts into memory from any mount-tab-like file.
+    pub fn new_from_reader<R: BufRead>(reader: R) -> io::Result<MountList> {
+        Ok(MountList(MountIter::new_from_reader(reader).collect::<io::Result<Vec<MountInfo>>>()?))
     }
 
     // Returns true if the `source` is mounted at the given `dest`.
@@ -147,56 +148,65 @@ impl MountList {
 
     /// Find the first mount which which has the `path` destination.
     pub fn get_mount_by_dest<P: AsRef<Path>>(&self, path: P) -> Option<&MountInfo> {
-        self.0
-            .iter()
-            .find(|mount| mount.dest == path.as_ref())
+        self.0.iter().find(|mount| mount.dest == path.as_ref())
     }
 
     /// Find the first mount hich has the source `path`.
     pub fn get_mount_by_source<P: AsRef<Path>>(&self, path: P) -> Option<&MountInfo> {
-        self.0
-            .iter()
-            .find(|mount| mount.source == path.as_ref())
+        self.0.iter().find(|mount| mount.source == path.as_ref())
     }
 
     /// Iterate through each source that starts with the given `path`.
-    pub fn source_starts_with<'a>(&'a self, path: &'a Path) -> Box<Iterator<Item = &MountInfo> + 'a> {
+    pub fn source_starts_with<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Box<Iterator<Item = &MountInfo> + 'a> {
         self.starts_with(path.as_os_str().as_bytes(), |m| &m.source)
     }
 
     /// Iterate through each destination that starts with the given `path`.
-    pub fn destination_starts_with<'a>(&'a self, path: &'a Path) -> Box<Iterator<Item = &MountInfo> + 'a> {
+    pub fn destination_starts_with<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Box<Iterator<Item = &MountInfo> + 'a> {
         self.starts_with(path.as_os_str().as_bytes(), |m| &m.dest)
     }
 
     fn starts_with<'a, F: Fn(&'a MountInfo) -> &'a Path + 'a>(
         &'a self,
         path: &'a [u8],
-        func: F
+        func: F,
     ) -> Box<Iterator<Item = &MountInfo> + 'a> {
-        let iterator = self.0
-            .iter()
-            .filter(move |mount| {
-                let input = func(mount).as_os_str().as_bytes();
-                input.len() >= path.len() && &input[..path.len()] == path
-            });
+        let iterator = self.0.iter().filter(move |mount| {
+            let input = func(mount).as_os_str().as_bytes();
+            input.len() >= path.len() && &input[..path.len()] == path
+        });
 
         Box::new(iterator)
     }
 }
 
 /// Iteratively parse the `/proc/mounts` file.
-pub struct MountIter {
-    file: BufReader<File>,
-    buffer: String
+pub struct MountIter<R> {
+    file: R,
+    buffer: String,
 }
 
-impl MountIter {
+impl MountIter<BufReader<File>> {
     pub fn new() -> io::Result<Self> {
-        Ok(Self {
-            file: BufReader::new(File::open("/proc/mounts")?),
-            buffer: String::with_capacity(512),
-        })
+        Self::new_from_file("/proc/mounts")
+    }
+
+    /// Read mounts from any mount-tab-like file.
+    pub fn new_from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        Ok(Self::new_from_reader(BufReader::new(File::open(path)?)))
+    }
+}
+
+impl<R: BufRead> MountIter<R> {
+    /// Read mounts from any in-memory buffer.
+    pub fn new_from_reader(readable: R) -> Self {
+        Self { file: readable, buffer: String::with_capacity(512) }
     }
 
     /// Iterator-based variant of `source_mounted_at`.
@@ -204,7 +214,10 @@ impl MountIter {
     /// Returns true if the `source` is mounted at the given `dest`.
     ///
     /// Due to iterative parsing of the mount file, an error may be returned.
-    pub fn source_mounted_at<D: AsRef<Path>, P: AsRef<Path>>(source: D, path: P) -> io::Result<bool> {
+    pub fn source_mounted_at<D: AsRef<Path>, P: AsRef<Path>>(
+        source: D,
+        path: P,
+    ) -> io::Result<bool> {
         let source = source.as_ref();
         let path = path.as_ref();
 
@@ -215,7 +228,7 @@ impl MountIter {
             let mount = mount?;
             if mount.source == source {
                 is_found = mount.dest == path;
-                break
+                break;
             }
         }
 
@@ -223,23 +236,30 @@ impl MountIter {
     }
 }
 
-impl Iterator for MountIter {
+impl<R: BufRead> Iterator for MountIter<R> {
     type Item = io::Result<MountInfo>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.buffer.clear();
-        match self.file.read_line(&mut self.buffer) {
-            Ok(read) if read == 0 => None,
-            Ok(_) => Some(MountInfo::parse_line(&self.buffer)),
-            Err(why) => Some(Err(why))
+        loop {
+            self.buffer.clear();
+            match self.file.read_line(&mut self.buffer) {
+                Ok(read) if read == 0 => return None,
+                Ok(_) => {
+                    let line = self.buffer.trim_left();
+                    if !(line.starts_with("#") || line.is_empty()) {
+                        return Some(MountInfo::parse_line(line));
+                    }
+                }
+                Err(why) => return Some(Err(why)),
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
     use super::*;
+    use std::path::{Path, PathBuf};
 
     const SAMPLE: &str = r#"sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0
 proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
