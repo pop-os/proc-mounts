@@ -1,3 +1,10 @@
+# 0.2.2
+
+- Added a `MountTab` type for non-destructive editing of fstab
+- Split the mounts module into sub-modules
+- Fix the `Display` for `MountInfo` to write `defaults` if the `options` field is empty
+- Added `Default` derives
+
 # 0.2.1
 
 - Implement `Display` for `MountInfo` and `SwapInfo`
