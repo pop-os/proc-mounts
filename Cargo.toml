@@ -10,5 +10,5 @@ categories = ["os::unix-apis"]
 keywords = ["linux", "proc", "mounts", "swaps"]
 
 [dependencies]
-lazy_static = "1.1.0"
+lazy_static = "1.4"
 partition-identity = "0.2.6"
