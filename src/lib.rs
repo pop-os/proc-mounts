@@ -30,16 +30,17 @@ mod swaps;
 
 use std::collections::hash_map::DefaultHasher;
 
-use std::fs::File;
-use std::hash::{Hash, Hasher};
-use std::io::{self, Read};
-use std::path::Path;
-use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::Duration;
+use std::{
+    fs::File,
+    hash::{Hash, Hasher},
+    io::{self, Read},
+    path::Path,
+    sync::{Arc, RwLock},
+    thread,
+    time::Duration,
+};
 
-pub use self::mounts::*;
-pub use self::swaps::*;
+pub use self::{mounts::*, swaps::*};
 
 lazy_static! {
     /// Static list of mounts that is dynamically updated in the background.

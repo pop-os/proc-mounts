@@ -1,19 +1,19 @@
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-use std::path::Path;
-use std::str::FromStr;
 use super::MountInfo;
+use std::{
+    fs::File,
+    io::{self, BufRead, BufReader},
+    path::Path,
+    str::FromStr,
+};
 
 /// Iteratively parse the `/proc/mounts` file.
 pub struct MountIter<R> {
-    file: R,
+    file:   R,
     buffer: String,
 }
 
 impl MountIter<BufReader<File>> {
-    pub fn new() -> io::Result<Self> {
-        Self::new_from_file("/proc/mounts")
-    }
+    pub fn new() -> io::Result<Self> { Self::new_from_file("/proc/mounts") }
 
     /// Read mounts from any mount-tab-like file.
     pub fn new_from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {

@@ -3,10 +3,7 @@ mod iter;
 mod list;
 mod tab;
 
-pub use self::info::*;
-pub use self::iter::*;
-pub use self::list::*;
-pub use self::tab::*;
+pub use self::{info::*, iter::*, list::*, tab::*};
 
 #[cfg(test)]
 mod tests {
@@ -36,9 +33,9 @@ fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
         assert_eq!(
             mounts.get_mount_by_source(Path::new("/dev/sda1")).unwrap(),
             &MountInfo {
-                source: PathBuf::from("/dev/sda1"),
-                dest: PathBuf::from("/boot/efi"),
-                fstype: "vfat".into(),
+                source:  PathBuf::from("/dev/sda1"),
+                dest:    PathBuf::from("/boot/efi"),
+                fstype:  "vfat".into(),
                 options: vec![
                     "rw".into(),
                     "relatime".into(),
@@ -49,8 +46,8 @@ fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
                     "shortname=mixed".into(),
                     "errors=remount-ro".into(),
                 ],
-                dump: 0,
-                pass: 0,
+                dump:    0,
+                pass:    0,
             }
         );
 

@@ -1,11 +1,13 @@
-use std::char;
-use std::ffi::OsString;
-use std::fmt::{self, Display, Formatter};
-use std::fs::File;
-use std::io::{self, BufRead, BufReader, Error, ErrorKind};
-use std::os::unix::ffi::OsStringExt;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    char,
+    ffi::OsString,
+    fmt::{self, Display, Formatter},
+    fs::File,
+    io::{self, BufRead, BufReader, Error, ErrorKind},
+    os::unix::ffi::OsStringExt,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 /// A swap entry, which defines an active swap.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -38,6 +40,7 @@ impl Display for SwapInfo {
 
 impl FromStr for SwapInfo {
     type Err = io::Error;
+
     fn from_str(line: &str) -> Result<Self, Self::Err> {
         let mut parts = line.split_whitespace();
 
@@ -61,10 +64,10 @@ impl FromStr for SwapInfo {
         }
 
         Ok(SwapInfo {
-            source: PathBuf::from(next_value!("Missing source")?),
-            kind: next_value!("Missing kind")?,
-            size: parse::<usize>(&next_value!("Missing size")?)?,
-            used: parse::<usize>(&next_value!("Missing used")?)?,
+            source:   PathBuf::from(next_value!("Missing source")?),
+            kind:     next_value!("Missing kind")?,
+            size:     parse::<usize>(&next_value!("Missing size")?)?,
+            used:     parse::<usize>(&next_value!("Missing used")?)?,
             priority: parse::<isize>(&next_value!("Missing priority")?)?,
         })
     }
@@ -73,9 +76,7 @@ impl FromStr for SwapInfo {
 impl SwapInfo {
     // Attempt to parse a `/proc/swaps`-like line.
     #[deprecated]
-    pub fn parse_line(line: &str) -> io::Result<SwapInfo> {
-        line.parse::<Self>()
-    }
+    pub fn parse_line(line: &str) -> io::Result<SwapInfo> { line.parse::<Self>() }
 
     fn parse_value(value: &str) -> io::Result<OsString> {
         let mut ret = Vec::new();
@@ -135,14 +136,12 @@ impl SwapList {
 
 /// Iteratively parse the `/proc/swaps` file.
 pub struct SwapIter<R: BufRead> {
-    file: R,
+    file:   R,
     buffer: String,
 }
 
 impl SwapIter<BufReader<File>> {
-    pub fn new() -> io::Result<Self> {
-        Self::new_from_file("/proc/swaps")
-    }
+    pub fn new() -> io::Result<Self> { Self::new_from_file("/proc/swaps") }
 
     pub fn new_from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         Self::new_from_reader(BufReader::new(File::open(path)?))
@@ -175,8 +174,7 @@ impl<R: BufRead> Iterator for SwapIter<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::OsString;
-    use std::path::PathBuf;
+    use std::{ffi::OsString, path::PathBuf};
 
     const SAMPLE: &str = r#"Filename				Type		Size	Used	Priority
 /dev/sda5                               partition	8388600	0	-2"#;
@@ -187,11 +185,11 @@ mod tests {
         assert_eq!(
             swaps,
             SwapList(vec![SwapInfo {
-                source: PathBuf::from("/dev/sda5"),
-                kind: OsString::from("partition"),
-                size: 8_388_600,
-                used: 0,
-                priority: -2
+                source:   PathBuf::from("/dev/sda5"),
+                kind:     OsString::from("partition"),
+                size:     8_388_600,
+                used:     0,
+                priority: -2,
             }])
         );
 

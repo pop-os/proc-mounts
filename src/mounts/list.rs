@@ -1,8 +1,10 @@
-use std::io::{self, BufRead};
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
-use std::str::FromStr;
 use super::{MountInfo, MountIter};
+use std::{
+    io::{self, BufRead},
+    os::unix::ffi::OsStrExt,
+    path::Path,
+    str::FromStr,
+};
 
 /// A list of parsed mount entries from `/proc/mounts`.
 #[derive(Debug, Default, Clone, Hash, Eq, PartialEq)]

@@ -1,8 +1,10 @@
 use super::MountInfo;
-use std::io;
-use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt::{self, Display, Formatter},
+    io,
+    ops::{Deref, DerefMut},
+    str::FromStr,
+};
 
 /// An element in an abtract representation of the mount tab that was read into memory.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,35 +14,29 @@ pub enum AbstractMountElement {
     /// An element which is an empty line.
     Empty,
     /// An element which defines a mount point
-    Mount(MountInfo)
+    Mount(MountInfo),
 }
 
 impl Display for AbstractMountElement {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result<> {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match self {
             AbstractMountElement::Comment(ref comment) => fmt.write_str(comment),
             AbstractMountElement::Empty => Ok(()),
-            AbstractMountElement::Mount(ref entry) => fmt.write_fmt(format_args!("{}", entry))
+            AbstractMountElement::Mount(ref entry) => fmt.write_fmt(format_args!("{}", entry)),
         }
     }
 }
 
 impl From<String> for AbstractMountElement {
-    fn from(comment: String) -> Self {
-        AbstractMountElement::Comment(comment)
-    }
+    fn from(comment: String) -> Self { AbstractMountElement::Comment(comment) }
 }
 
 impl From<()> for AbstractMountElement {
-    fn from(_: ()) -> Self {
-        AbstractMountElement::Empty
-    }
+    fn from(_: ()) -> Self { AbstractMountElement::Empty }
 }
 
 impl From<MountInfo> for AbstractMountElement {
-    fn from(info: MountInfo) -> Self {
-        AbstractMountElement::Mount(info)
-    }
+    fn from(info: MountInfo) -> Self { AbstractMountElement::Mount(info) }
 }
 
 /// Provides an abstract representation of the contents of a mount tab.
@@ -53,11 +49,23 @@ pub struct MountTab(pub Vec<AbstractMountElement>);
 
 impl MountTab {
     pub fn iter_mounts(&self) -> impl Iterator<Item = &MountInfo> {
-        self.0.iter().filter_map(|e| if let AbstractMountElement::Mount(e) = e { Some(e) } else { None })
+        self.0.iter().filter_map(|e| {
+            if let AbstractMountElement::Mount(e) = e {
+                Some(e)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn iter_mounts_mut(&mut self) -> impl Iterator<Item = &mut MountInfo> {
-        self.0.iter_mut().filter_map(|e| if let AbstractMountElement::Mount(e) = e { Some(e) } else { None })
+        self.0.iter_mut().filter_map(|e| {
+            if let AbstractMountElement::Mount(e) = e {
+                Some(e)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn push<E: Into<AbstractMountElement>>(&mut self, element: E) {
@@ -67,15 +75,12 @@ impl MountTab {
 
 impl Deref for MountTab {
     type Target = Vec<AbstractMountElement>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl DerefMut for MountTab {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 impl Display for MountTab {

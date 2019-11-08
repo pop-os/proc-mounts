@@ -1,11 +1,13 @@
 use partition_identity::PartitionID;
-use std::char;
-use std::ffi::OsString;
-use std::fmt::{self, Display, Formatter};
-use std::io::{self, Error, ErrorKind};
-use std::os::unix::ffi::OsStringExt;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{
+    char,
+    ffi::OsString,
+    fmt::{self, Display, Formatter},
+    io::{self, Error, ErrorKind},
+    os::unix::ffi::OsStringExt,
+    path::PathBuf,
+    str::FromStr,
+};
 
 /// A mount entry which contains information regarding how and where a source
 /// is mounted.
@@ -33,11 +35,7 @@ impl Display for MountInfo {
             self.source.display(),
             self.dest.display(),
             self.fstype,
-            if self.options.is_empty() {
-                "defaults".into()
-            } else {
-                self.options.join(",")
-            },
+            if self.options.is_empty() { "defaults".into() } else { self.options.join(",") },
             self.dump,
             self.pass
         )
@@ -50,9 +48,7 @@ impl FromStr for MountInfo {
     fn from_str(line: &str) -> Result<Self, Self::Err> {
         let mut parts = line.split_whitespace();
 
-        fn map_err(why: &'static str) -> io::Error {
-            Error::new(ErrorKind::InvalidData, why)
-        }
+        fn map_err(why: &'static str) -> io::Error { Error::new(ErrorKind::InvalidData, why) }
 
         let source = parts.next().ok_or_else(|| map_err("missing source"))?;
         let dest = parts.next().ok_or_else(|| map_err("missing dest"))?;
@@ -95,9 +91,7 @@ impl FromStr for MountInfo {
 impl MountInfo {
     /// Attempt to parse a `/proc/mounts`-like line.
     #[deprecated]
-    pub fn parse_line(line: &str) -> io::Result<MountInfo> {
-        line.parse::<Self>()
-    }
+    pub fn parse_line(line: &str) -> io::Result<MountInfo> { line.parse::<Self>() }
 
     fn fetch_from_disk_by_path(path: &str) -> io::Result<PathBuf> {
         PartitionID::from_disk_by_path(path)
