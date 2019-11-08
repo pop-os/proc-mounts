@@ -14,7 +14,7 @@ mod tests {
 proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
 udev /dev devtmpfs rw,nosuid,relatime,size=16420480k,nr_inodes=4105120,mode=755 0 0
 tmpfs /run tmpfs rw,nosuid,noexec,relatime,size=3291052k,mode=755 0 0
-/dev/sda2 / ext4 rw,noatime,errors=remount-ro,data=ordered 0 0
+/dev/sda2 / ext4 rw,noatime,errors=remount-ro,data=ordered
 fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
 /dev/sda1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro 0 0
 /dev/sda6 /mnt/data ext4 rw,noatime,data=ordered 0 0"#;
