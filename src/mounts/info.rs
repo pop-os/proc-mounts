@@ -59,17 +59,13 @@ impl FromStr for MountInfo {
         let fstype = parts.next().ok_or_else(|| map_err("missing type"))?;
         let options = parts.next().ok_or_else(|| map_err("missing options"))?;
 
-        let dump = parts
-            .next()
-            .ok_or_else(|| map_err("missing dump"))?
-            .parse::<i32>()
-            .map_err(|_| map_err("dump value is not a number"))?;
-        let pass = parts
-            .next()
-            .ok_or_else(|| map_err("missing pass"))?
-            .trim_right()
-            .parse::<i32>()
-            .map_err(|_| map_err("pass value is not a number"))?;
+        let dump = parts.next().map_or(Ok(0), |value| {
+            value.parse::<i32>().map_err(|_| map_err("dump value is not a number"))
+        })?;
+
+        let pass = parts.next().map_or(Ok(0), |value| {
+            value.parse::<i32>().map_err(|_| map_err("pass value is not a number"))
+        })?;
 
         let path = Self::parse_value(source)?;
         let path = path.to_str().ok_or_else(|| map_err("non-utf8 paths are unsupported"))?;

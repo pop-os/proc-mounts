@@ -95,7 +95,7 @@ impl FromStr for MountTab {
         let mut entries = Vec::new();
 
         for line in input.lines() {
-            let line = line.trim_left();
+            let line = line.trim_start();
             if line.is_empty() {
                 entries.push(AbstractMountElement::Empty);
             } else if line.starts_with('#') {

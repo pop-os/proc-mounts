@@ -63,7 +63,7 @@ impl<R: BufRead> Iterator for MountIter<R> {
             match self.file.read_line(&mut self.buffer) {
                 Ok(read) if read == 0 => return None,
                 Ok(_) => {
-                    let line = self.buffer.trim_left();
+                    let line = self.buffer.trim_start();
                     if !(line.starts_with('#') || line.is_empty()) {
                         return Some(MountInfo::from_str(line));
                     }
