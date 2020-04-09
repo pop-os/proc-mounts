@@ -51,7 +51,7 @@ impl MountList {
     pub fn source_starts_with<'a>(
         &'a self,
         path: &'a Path,
-    ) -> Box<Iterator<Item = &MountInfo> + 'a> {
+    ) -> Box<dyn Iterator<Item = &MountInfo> + 'a> {
         self.starts_with(path.as_os_str().as_bytes(), |m| &m.source)
     }
 
@@ -59,7 +59,7 @@ impl MountList {
     pub fn destination_starts_with<'a>(
         &'a self,
         path: &'a Path,
-    ) -> Box<Iterator<Item = &MountInfo> + 'a> {
+    ) -> Box<dyn Iterator<Item = &MountInfo> + 'a> {
         self.starts_with(path.as_os_str().as_bytes(), |m| &m.dest)
     }
 
@@ -67,7 +67,7 @@ impl MountList {
         &'a self,
         path: &'a [u8],
         func: F,
-    ) -> Box<Iterator<Item = &MountInfo> + 'a> {
+    ) -> Box<dyn Iterator<Item = &MountInfo> + 'a> {
         let iterator = self.0.iter().filter(move |mount| {
             let input = func(mount).as_os_str().as_bytes();
             input.len() >= path.len() && &input[..path.len()] == path
