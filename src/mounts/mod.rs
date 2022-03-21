@@ -53,19 +53,17 @@ fusectl /sys/fs/fuse/connections fusectl rw,relatime 0 0
 
         let path = &Path::new("/");
         assert_eq!(
-            mounts.destination_starts_with(path).map(|m| m.dest.clone()).collect::<Vec<_>>(),
-            {
-                let mut vec: Vec<PathBuf> = Vec::new();
-                vec.push("/sys".into());
-                vec.push("/proc".into());
-                vec.push("/dev".into());
-                vec.push("/run".into());
-                vec.push("/".into());
-                vec.push("/sys/fs/fuse/connections".into());
-                vec.push("/boot/efi".into());
-                vec.push("/mnt/data".into());
-                vec
-            }
+            mounts.destination_starts_with(path).map(|m| m.dest.clone()).collect::<Vec<PathBuf>>(),
+            vec![
+                PathBuf::from("/sys"),
+                PathBuf::from("/proc"),
+                PathBuf::from("/dev"),
+                PathBuf::from("/run"),
+                PathBuf::from("/"),
+                PathBuf::from("/sys/fs/fuse/connections"),
+                PathBuf::from("/boot/efi"),
+                PathBuf::from("/mnt/data")
+            ]
         );
     }
 }
